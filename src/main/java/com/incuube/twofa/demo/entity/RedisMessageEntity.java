@@ -1,6 +1,7 @@
 package com.incuube.twofa.demo.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.incuube.twofa.demo.utils.InRange;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
@@ -22,4 +23,6 @@ public class RedisMessageEntity implements Serializable {
         private String otpCode;
         private String message;
         private Integer codeTimeToLive;
+        private Long timeStamp;
+        private Boolean used;
 }

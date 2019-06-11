@@ -20,7 +20,7 @@ public class SendMsgRequest  {
     private String template;
 
     @JsonProperty(value = "ttl")
-    @InRange(min = 10,max = 20,message = "Invalid TTL range")
+    @InRange(min = 5,max = 50,message = "Invalid TTL range")
     private Integer codeTimeToLive;
 
 }

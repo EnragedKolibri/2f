@@ -18,7 +18,9 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.validation.Valid;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Log4j
@@ -52,7 +54,9 @@ public class Controller {
             String uuid = UUID.randomUUID().toString();
             String otpCode = otpGenerator.getOtp();
             String message = otpGenerator.getMessage();
-            RedisMessageEntity entityToSave = new RedisMessageEntity(uuid,request.getPhoneNumber(),request.getTemplate(),otpCode,message,request.getCodeTimeToLive());
+            Instant instant = Instant.now();
+            Long timeStampSeconds = instant.getEpochSecond();
+            RedisMessageEntity entityToSave = new RedisMessageEntity(uuid,request.getPhoneNumber(),request.getTemplate(),otpCode,message,request.getCodeTimeToLive(),timeStampSeconds,false);
             log.info("[Write in database]: "+entityToSave);
             RedisMessageEntity savedEntity = redisRepository.save(entityToSave);
             smsSender.send(savedEntity.getPhoneNumber(), savedEntity.getMessage());
@@ -68,8 +72,32 @@ public class Controller {
         if (Arrays.asList(apiKeys).contains(key))
         {
             //TODO logic for matching code by token
-            RedisMessageEntity redisMessageEntity = redisRepository.findById(request.getToken()).get();
-            log.info("[Get from database]: "+redisMessageEntity);
+            RedisMessageEntity redisMessageEntity;
+            try {
+                redisMessageEntity = redisRepository.findById(request.getToken()).get();
+                log.info("[Get from database]: "+redisMessageEntity);
+                Instant instant = Instant.now();
+                long timeStampSeconds = instant.getEpochSecond();
+                if (!request.getOtpCode().equals(redisMessageEntity.getOtpCode()))
+                {
+                    System.out.println("Request code: "+request.getOtpCode());
+                    System.out.println("Request code: "+redisMessageEntity.getOtpCode());
+                    return new ResponseEntity<>(returnMessage("OTP pass doesn't match"),HttpStatus.NOT_FOUND);
+                }
+
+                if (timeStampSeconds>redisMessageEntity.getTimeStamp()+redisMessageEntity.getCodeTimeToLive())
+                {
+                    System.out.println("Validation timestamp: "+timeStampSeconds);
+                    System.out.println("Redis timestamp: "+redisMessageEntity.getTimeStamp());
+                    System.out.println("Redis timestamp + ttl: "+redisMessageEntity.getTimeStamp()+redisMessageEntity.getCodeTimeToLive());
+                    return new ResponseEntity<>(returnMessage("OTP expiered"),HttpStatus.GONE);
+                }
+
+                //TODO logick for field used OTP or not
+            }catch (NoSuchElementException e)
+            {
+                return new ResponseEntity<>(returnMessage("Token Not Found"),HttpStatus.NOT_FOUND);
+            }
             return new ResponseEntity<>(redisMessageEntity,HttpStatus.OK);
         }
         return new ResponseEntity<>(returnMessage("Wrong ApiKey"),HttpStatus.UNAUTHORIZED);
